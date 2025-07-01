@@ -1,0 +1,5 @@
+{
+    "python.analysis.extraPaths": [
+        "./flask-server/proctoring_app/yolov5"
+    ]
+}
