@@ -49,6 +49,8 @@ const CreateTest = () => {
   });
   const [titleError, setTitleError] = useState(null);
   const [questions, setQuestions] = useState([]);
+  const [candidateEmails, setCandidateEmails] = useState("");
+  const [savedTestId, setSavedTestId] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -198,39 +200,92 @@ const CreateTest = () => {
 
 const handleSaveTest = async () => {
   try {
-    setIsSaving(true);
+    setIsSaving(true); // 🚀 Performance: Show loading state
+    const startTime = Date.now();
+    console.log("💾 Saving test with details:", testDetails);
+    console.log("💾 Questions count:", questions.length);
+    console.log("🔑 Token:", localStorage.getItem("token") ? "Token exists" : "No token found");
 
+    // 🚀 Performance: Optimize data structure and remove unnecessary fields
     const cleanedQuestions = questions
-      .filter((q) => q.text.trim() !== "")
-      .map((q) => ({
-        ...q,
-        options: q.options.filter((o) => o.text.trim() !== ""),
+      .filter((q) => q.text && q.text.trim() !== "")
+      .map((q, index) => ({
+        id: q.id || `q_${index}`,
+        text: q.text.trim(),
+        type: q.type || "multiple-choice",
+        options: q.options
+          .filter((o) => o.text && o.text.trim() !== "")
+          .map((o, optIndex) => ({
+            id: o.id || optIndex + 1,
+            text: o.text.trim(),
+            isCorrect: Boolean(o.isCorrect)
+          })),
+        explanation: q.explanation?.trim() || ""
       }));
+
+    // 🚀 Performance: Send only essential data
+    const testData = {
+      title: testDetails.title?.trim(),
+      description: testDetails.description?.trim() || "",
+      category: testDetails.category?.trim() || "General",
+      duration: testDetails.duration || 30,
+      passingScore: testDetails.passingScore || 70,
+      questionCount: cleanedQuestions.length,
+      accessType: testDetails.accessType || "invited",
+      enableProctoring: Boolean(testDetails.enableProctoring),
+      questions: cleanedQuestions,
+    };
+    
+    // 🚀 Performance: Log payload size
+    const payloadSize = JSON.stringify(testData).length;
+    console.log(`💾 Payload size: ${(payloadSize / 1024).toFixed(2)} KB`);
+    console.log("🌐 Making request to: http://localhost:3000/api/hr/create-test");
+
+    // 🚀 Performance: Add timeout and optimized request
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
     const response = await fetch("http://localhost:3000/api/hr/create-test", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${localStorage.getItem("token")}`,
+        "Cache-Control": "no-cache",
       },
-      body: JSON.stringify({
-        ...testDetails,
-        questions: cleanedQuestions,
-      }),
+      body: JSON.stringify(testData),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
+
+    const responseTime = Date.now() - startTime;
+    console.log(`⏱️ Request completed in ${responseTime}ms`);
 
     let data = {};
     if (response.ok) {
       data = await response.json();
+      setSavedTestId(data.test._id); // Store the test ID for assignment
+      
+      // 🚀 Performance: Show success with timing info
+      const message = data.processingTime 
+        ? `Test created in ${data.processingTime}` 
+        : "Test created successfully";
+      
       toast({
         title: "Test saved",
-        description: "Your test has been created successfully!",
+        description: message,
       });
-      navigate("/hr/dashboard");
+      
+      console.log(`✅ Test saved successfully: ${data.test._id}`);
+      
+      // Don't navigate immediately if we're in the final step and need to assign
+      if (step < (creationMethod === "ai" ? 4 : 3)) {
+        navigate("/hr/dashboard");
+      }
     } else {
       try {
         data = await response.json();
-      } catch (_) {
+      } catch {
         data = { error: "Unexpected server response. Check the API endpoint." };
       }
       toast({
@@ -240,32 +295,131 @@ const handleSaveTest = async () => {
       });
     }
   } catch (error) {
+    console.error("❌ Error creating test:", error);
+    console.error("❌ Error details:", {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    
+    let errorMessage = "Network or server error occurred";
+    if (error.name === 'AbortError') {
+      errorMessage = "Request timed out after 30 seconds. Try reducing the number of questions or simplifying the test content.";
+    } else if (error.message.includes("Failed to fetch")) {
+      errorMessage = "Cannot connect to server. Please check if the server is running on http://localhost:3000";
+    } else if (error.message.includes("413")) {
+      errorMessage = "Test data is too large. Try reducing the number of questions or shortening question text.";
+    }
+    
     toast({
       variant: "destructive",
       title: "Error",
-      description: "Network or server error occurred",
+      description: errorMessage,
     });
-    console.error("❌ Error creating test:", error);
   } finally {
-    setIsSaving(false);
+    setIsSaving(false); // 🚀 Performance: Hide loading state
   }
 };
 
 
-  const handleSendInvitations = () => {
-    toast({
-      title: "Invitations sent",
-      description: "Test invitations have been sent to candidates.",
-    });
+  const handleSendInvitations = async () => {
+    if (!candidateEmails.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Missing emails",
+        description: "Please enter at least one candidate email address.",
+      });
+      return;
+    }
+
+    if (!savedTestId) {
+      toast({
+        variant: "destructive",
+        title: "Test not saved",
+        description: "Please save the test first before sending invitations.",
+      });
+      return;
+    }
+
+    try {
+      // Parse emails from textarea
+      const emailList = candidateEmails
+        .split(/[,\n]/)
+        .map(email => email.trim())
+        .filter(email => email.length > 0);
+
+      console.log("📧 Sending invitations to:", emailList);
+
+      const response = await fetch("http://localhost:3000/api/hr/assign-test", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({
+          testId: savedTestId,
+          candidateEmails: emailList,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "Invitations sent successfully!",
+          description: `Test "${data.testTitle}" has been assigned to ${data.assignments.length} candidate(s).`,
+        });
+
+        // Show assignment details
+        if (data.assignments.length > 0) {
+          console.log("✅ Assignment details:", data.assignments);
+          // You could show a modal with access links here
+        }
+
+        if (data.errors && data.errors.length > 0) {
+          console.warn("⚠️ Some assignments failed:", data.errors);
+          toast({
+            variant: "destructive",
+            title: "Some invitations failed",
+            description: `${data.errors.length} email(s) could not be processed. Check console for details.`,
+          });
+        }
+
+        // Navigate to dashboard after successful assignment
+        setTimeout(() => navigate("/hr/dashboard"), 2000);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Failed to send invitations",
+          description: data.error || "Something went wrong",
+        });
+      }
+    } catch (error) {
+      console.error("❌ Error sending invitations:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Network error occurred while sending invitations",
+      });
+    }
   };
 
   const handleAddAIQuestions = (aiQuestions) => {
     setQuestions(aiQuestions);
-    setStep(2);
+    setStep(3); // Move to review step for AI method
     toast({
       title: "Questions generated",
       description:
         "AI has generated questions based on your specifications. Please review them.",
+    });
+  };
+
+  const handleSettingsUpdated = (updatedSettings) => {
+    console.log("📝 Settings updated from AI:", updatedSettings);
+    setTestDetails((prev) => {
+      const newDetails = { ...prev, ...updatedSettings };
+      console.log("📝 New test details:", newDetails);
+      return newDetails;
     });
   };
   
@@ -289,9 +443,19 @@ return (
             <Button
               className="bg-primary hover:bg-primary/90"
               onClick={handleSaveTest}
+              disabled={isSaving}
             >
-              <Save className="mr-2 h-4 w-4" />
-              Save Draft
+              {isSaving ? (
+                <>
+                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-b-transparent"></div>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Save Draft
+                </>
+              )}
             </Button>
           </div>
         </div>
@@ -630,6 +794,7 @@ return (
             <AIQuizGenerator
               testDetails={testDetails}
               onQuestionsGenerated={handleAddAIQuestions}
+              onSettingsUpdated={handleSettingsUpdated}
             />
           </div>
         )}
@@ -912,8 +1077,10 @@ return (
                   <Label htmlFor="emails">Candidate Emails</Label>
                   <Textarea
                     id="emails"
-                    placeholder="Enter email addresses separated by commas"
+                    placeholder="Enter email addresses separated by commas or new lines&#10;Example:&#10;john@example.com&#10;jane@example.com, bob@example.com"
                     rows={4}
+                    value={candidateEmails}
+                    onChange={(e) => setCandidateEmails(e.target.value)}
                   />
                   <div className="flex justify-end">
                     <Button
@@ -979,14 +1146,18 @@ return (
       <Button
         onClick={handleNextStep}
         disabled={
-          step === (creationMethod === "ai" ? 3 : 2) &&
-          questions.length === 0
+          (step === (creationMethod === "ai" ? 3 : 2) && questions.length === 0) || isSaving
         }
       >
         {step < (creationMethod === "ai" ? 4 : 3) ? (
           <>
             Next
             <ChevronRight className="ml-2 h-4 w-4" />
+          </>
+        ) : isSaving ? (
+          <>
+            <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-b-transparent"></div>
+            Saving Test...
           </>
         ) : (
           "Finish & Save Test"

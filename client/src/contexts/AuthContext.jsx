@@ -1,12 +1,13 @@
 import React, {
-  createContext,
   useState,
-  useContext,
   useEffect,
   useRef,
 } from "react";
+import { AuthContext, useAuth } from "./useAuth";
 
-export const AuthContext = createContext();
+// Re-export useAuth for convenience
+// eslint-disable-next-line react-refresh/only-export-components
+export { useAuth };
 
 export const AuthProvider = ({ children }) => {
   const initialized = useRef(false);
@@ -151,10 +152,5 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
-};
+// Only export the component for Fast Refresh compatibility
+export default AuthProvider;

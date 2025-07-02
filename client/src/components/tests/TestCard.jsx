@@ -32,7 +32,30 @@ export function TestCard({
   avgScore,
   onAction,
   viewType = "hr",
+  test, // Add test prop to handle test object
 }) {
+  // If test object is provided, use its properties
+  const testData = test || {
+    _id: id,
+    title,
+    description,
+    category,
+    status,
+    createdDate,
+    respondents,
+    avgScore,
+  };
+
+  const testId = testData._id || id;
+  const testTitle = testData.title || title;
+  const testDescription = testData.description || description;
+  const testCategory = testData.category || category || "Uncategorized";
+  const testStatus = testData.status || status || "setup";
+  const testCreatedDate = testData.createdDate || createdDate || (testData.createdAt ? new Date(testData.createdAt).toLocaleDateString() : "");
+  const testRespondents = testData.respondents || respondents;
+  const testAvgScore = testData.avgScore || avgScore;
+  const questionCount = testData.questions ? testData.questions.length : 20;
+  const isPublished = testData.published || false;
   const statusColors = {
     setup: "bg-orange-100 text-orange-800",
     active: "bg-green-100 text-green-800",
@@ -49,7 +72,7 @@ export function TestCard({
 
   const handleAction = (action) => {
     if (onAction) {
-      onAction(action, id);
+      onAction(action, testId);
     }
   };
 
@@ -61,13 +84,13 @@ export function TestCard({
             variant="outline"
             className={cn(
               "text-xs font-medium rounded-md",
-              statusColors[status]
+              statusColors[testStatus]
             )}
           >
-            {statusLabels[status]}
+            {statusLabels[testStatus]}
           </Badge>
           <p className="text-xs text-muted-foreground">
-            CREATED: {createdDate}
+            CREATED: {testCreatedDate}
           </p>
         </div>
         <DropdownMenu>
@@ -100,13 +123,23 @@ export function TestCard({
       </CardHeader>
 
       <CardContent className="p-4">
-        <h3 className="text-lg font-semibold mb-2">{title}</h3>
+        <h3 className="text-lg font-semibold mb-2">{testTitle}</h3>
         <p className="text-sm text-muted-foreground mb-4">
-          {description || "(no description)"}
+          {testDescription || "(no description)"}
         </p>
-        <Badge variant="secondary" className="text-xs rounded-md">
-          {category}
-        </Badge>
+        <div className="flex gap-2">
+          <Badge variant="secondary" className="text-xs rounded-md">
+            {testCategory}
+          </Badge>
+          {viewType === "hr" && (
+            <Badge 
+              variant={isPublished ? "default" : "outline"} 
+              className={`text-xs rounded-md ${isPublished ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"}`}
+            >
+              {isPublished ? "Published" : "Draft"}
+            </Badge>
+          )}
+        </div>
       </CardContent>
 
       <CardFooter className="p-4 pt-0 flex flex-wrap gap-4 text-xs">
@@ -115,36 +148,62 @@ export function TestCard({
             <div className="flex items-center gap-1">
               <Users className="h-3 w-3" />
               <span>
-                {respondents} {respondents === 1 ? "response" : "responses"}
+                {testRespondents} {testRespondents === 1 ? "response" : "responses"}
               </span>
             </div>
 
-            {avgScore !== undefined && (
+            {testAvgScore !== undefined && (
               <div className="flex items-center gap-1">
                 <BarChart3 className="h-3 w-3" />
-                <span>{avgScore}% avg. score</span>
+                <span>{testAvgScore}% avg. score</span>
               </div>
             )}
           </>
         )}
 
         {viewType === "candidate" && (
-          <div className="flex items-center gap-1">
-            <Clock className="h-3 w-3" />
-            <span>30 minutes</span>
-          </div>
+          <>
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              <span>{testData.duration || 30} minutes</span>
+            </div>
+            {testStatus === "completed" && testAvgScore !== undefined && (
+              <div className="flex items-center gap-1">
+                <BarChart3 className="h-3 w-3" />
+                <span>{testAvgScore}% score</span>
+              </div>
+            )}
+          </>
         )}
 
         <div className="flex items-center gap-1">
           <FileText className="h-3 w-3" />
-          <span>20 questions</span>
+          <span>{questionCount} questions</span>
         </div>
 
-        <div className="ml-auto">
+        <div className="ml-auto flex gap-2">
           {viewType === "hr" ? (
-            <Button size="sm" onClick={() => handleAction("view-results")}>
-              View results
-            </Button>
+            <>
+              <Button 
+                size="sm" 
+                variant={isPublished ? "default" : "outline"}
+                onClick={() => handleAction("publish")}
+              >
+                {isPublished ? "Published" : "Publish"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => handleAction("view-results")}>
+                View results
+              </Button>
+            </>
+          ) : testStatus === "completed" ? (
+            <>
+              <Button size="sm" variant="outline" onClick={() => handleAction("view-results")}>
+                View Results
+              </Button>
+              <Button size="sm" onClick={() => handleAction("retake-test")}>
+                Retake Test
+              </Button>
+            </>
           ) : (
             <Button size="sm" onClick={() => handleAction("start-test")}>
               Start test

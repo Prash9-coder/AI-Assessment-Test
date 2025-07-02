@@ -31,9 +31,7 @@ const MonitorTests = () => {
   const [search, setSearch] = useState("");
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [testName, setTestName] = useState("");
-  const [questions, setQuestions] = useState([]);
   const [candidates, setCandidates] = useState([]); // ✅ Moved inside the component
-  const [aiTests, setAiTests] = useState([]); // ✅ State for AI-created tests
 
   // ✅ Fetch candidates
   useEffect(() => {
@@ -59,29 +57,7 @@ const MonitorTests = () => {
     fetchCandidates();
   }, [toast]);
 
-  // ✅ Fetch AI-created tests
-  useEffect(() => {
-    const fetchTests = async () => {
-      try {
-        const res = await fetch("http://localhost:3000/api/hr/my-tests", {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-        });
 
-        if (!res.ok) throw new Error("Failed to fetch tests");
-
-        const data = await res.json();
-        console.log("✅ Fetched tests:", data);
-        setAiTests(data);
-      } catch (error) {
-        console.error("❌ Error fetching AI tests:", error);
-        toast({ title: "Failed to load AI tests", variant: "destructive" });
-      }
-    };
-
-    fetchTests();
-  }, [toast]);
 
   // ✅ Filter candidates
   const filteredCandidates = candidates.filter((candidate) => {
@@ -120,6 +96,23 @@ const MonitorTests = () => {
       title: "Chat initiated",
       description: "Opening chat with the candidate...",
     });
+  };
+
+  const handleSaveTest = () => {
+    if (!testName.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please enter a test name.",
+      });
+      return;
+    }
+    
+    toast({
+      title: "Test saved",
+      description: `Test "${testName}" has been saved successfully.`,
+    });
+    setTestName("");
   };
   return (
     <DashboardLayout allowedRole="hr">

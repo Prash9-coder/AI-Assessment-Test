@@ -13,6 +13,7 @@ import TestResults from "@/pages/hr/TestResults";
 import StartTest from "@/pages/candidate/StartTest";
 import TakeTest from "@/pages/candidate/TakeTest";
 import PreviousResults from "@/pages/candidate/PreviousResults";
+import TestResultDetail from "@/pages/candidate/TestResultDetail";
 import SignUp from "./pages/auth/SignUp";
 
 function App() {
@@ -37,8 +38,9 @@ function App() {
           {/* Candidate Routes */}
           <Route path="/candidate/dashboard" element={<CandidateDashboard />} />
           <Route path="/candidate/start-test" element={<StartTest />} />
-          <Route path="/candidate/take-test" element={<TakeTest />} />
+          <Route path="/candidate/take-test/:testId" element={<TakeTest />} />
           <Route path="/candidate/results" element={<PreviousResults />} />
+          <Route path="/candidate/results/:attemptId" element={<TestResultDetail />} />
           {/* Not Found */}
           <Route path="*" element={<NotFound />} />
         </Routes>

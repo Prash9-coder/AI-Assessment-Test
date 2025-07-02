@@ -5,58 +5,110 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Clock, CheckCircle2, Award, CalendarDays } from "lucide-react";
 import { UserSettings } from "@/components/user/UserSettings";
+import { DashboardProvider, useDashboard } from "@/contexts/DashboardContext";
+import { useEffect, useState, useMemo, useCallback } from "react";
 
-// Mock data for tests
-const mockTests = [
-  {
-    id: "1",
-    title: "Programming Skills Assessment",
-    description: "Evaluate coding skills and problem-solving abilities",
-    category: "Programming",
-    status: "active",
-    createdDate: "2025-03-21",
-  },
-  {
-    id: "2",
-    title: "Customer Care Periodic Test",
-    description: "Regular assessment for customer service skills",
-    category: "Customer Service",
-    status: "active",
-    createdDate: "2025-03-21",
-  },
-];
-
-// Mock data for completed tests
-const mockCompletedTests = [
-  {
-    id: "3",
-    title: "Product Knowledge Test for Sales",
-    description: "Test on product features and sales techniques",
-    category: "Sales",
-    status: "completed",
-    createdDate: "2025-03-15",
-    respondents: 1,
-    avgScore: 82,
-  },
-  {
-    id: "4",
-    title: "Example Reasoning Test",
-    description: "Logical reasoning and problem-solving assessment",
-    category: "Cognitive",
-    status: "completed",
-    createdDate: "2025-03-10",
-    respondents: 1,
-    avgScore: 50,
-  },
-];
+// Helper function to transform API data to component format
+const transformTestData = (apiTests, attempts = []) => {
+  const attemptMap = new Map(attempts.map(attempt => [attempt.testId._id, attempt]));
+  
+  return apiTests.map(test => ({
+    id: test._id,
+    title: test.title,
+    description: test.description,
+    category: test.category || "General",
+    status: attemptMap.has(test._id) ? "completed" : "active",
+    createdDate: new Date(test.createdAt).toISOString().split('T')[0],
+    respondents: attemptMap.has(test._id) ? 1 : 0,
+    avgScore: attemptMap.get(test._id)?.score || 0,
+    duration: test.duration || 30,
+    questions: test.questions || [],
+    attempt: attemptMap.get(test._id), // Include the attempt data
+  }));
+};
 
 const CandidateDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const {
+    tests, testsLoading,
+    attempts, attemptsLoading,
+    refreshDashboard
+  } = useDashboard();
+  const [pendingTests, setPendingTests] = useState([]);
+  const [completedTests, setCompletedTests] = useState([]);
+  const [dashboardStats, setDashboardStats] = useState({
+    pendingCount: 0,
+    completedCount: 0,
+    bestScore: 0,
+    nextTest: "No upcoming tests"
+  });
 
-  const handleTestAction = (action, id) => {
+  // Memoize expensive computations
+  const { pending, completed, stats } = useMemo(() => {
+    if (!testsLoading && !attemptsLoading && tests.length >= 0) {
+      const transformed = transformTestData(tests, attempts);
+      const pendingTests = transformed.filter(test => test.status === "active");
+      const completedTests = transformed.filter(test => test.status === "completed");
+      
+      const bestScore = completedTests.length > 0 
+        ? Math.max(...completedTests.map(test => test.avgScore))
+        : 0;
+      
+      const statsData = {
+        pendingCount: pendingTests.length,
+        completedCount: completedTests.length,
+        bestScore,
+        nextTest: pendingTests.length > 0 ? "Today" : "No upcoming tests"
+      };
+      
+      return {
+        pending: pendingTests,
+        completed: completedTests,
+        stats: statsData
+      };
+    }
+    return {
+      pending: [],
+      completed: [],
+      stats: {
+        pendingCount: 0,
+        completedCount: 0,
+        bestScore: 0,
+        nextTest: "No upcoming tests"
+      }
+    };
+  }, [tests, attempts, testsLoading, attemptsLoading]);
+
+  // Update state when computed values change
+  useEffect(() => {
+    setPendingTests(pending);
+    setCompletedTests(completed);
+    setDashboardStats(stats);
+  }, [pending, completed, stats]);
+
+  // 🚀 Performance: Check for test completion flag on mount
+  useEffect(() => {
+    if (localStorage.getItem('testCompleted')) {
+      console.log("🎯 Found test completion flag, refreshing data...");
+      refreshDashboard();
+      localStorage.removeItem('testCompleted');
+    }
+  }, [refreshDashboard]);
+
+  const handleTestAction = useCallback((action, id) => {
     if (action === "start-test") {
-      navigate("/candidate/take-test");
+      navigate(`/candidate/take-test/${id}`);
+    } else if (action === "retake-test") {
+      navigate(`/candidate/take-test/${id}`);
+    } else if (action === "view-results") {
+      // Find the attempt for this test
+      const attempt = attempts.find(attempt => attempt.testId._id === id);
+      if (attempt) {
+        navigate(`/candidate/results/${attempt._id}`);
+      } else {
+        navigate("/candidate/results");
+      }
     } else if (action === "view-details") {
       navigate("/candidate/results");
     } else {
@@ -65,7 +117,7 @@ const CandidateDashboard = () => {
         description: `${action} action for test ID: ${id}`,
       });
     }
-  };
+  }, [navigate, attempts, toast]);
 
   return (
     <DashboardLayout allowedRole="candidate">
@@ -95,7 +147,7 @@ const CandidateDashboard = () => {
               <p className="text-sm font-medium text-muted-foreground">
                 Pending Tests
               </p>
-              <h3 className="text-2xl font-bold">2</h3>
+              <h3 className="text-2xl font-bold">{dashboardStats.pendingCount}</h3>
             </div>
           </div>
 
@@ -107,7 +159,7 @@ const CandidateDashboard = () => {
               <p className="text-sm font-medium text-muted-foreground">
                 Completed
               </p>
-              <h3 className="text-2xl font-bold">2</h3>
+              <h3 className="text-2xl font-bold">{dashboardStats.completedCount}</h3>
             </div>
           </div>
 
@@ -119,7 +171,7 @@ const CandidateDashboard = () => {
               <p className="text-sm font-medium text-muted-foreground">
                 Best Score
               </p>
-              <h3 className="text-2xl font-bold">82%</h3>
+              <h3 className="text-2xl font-bold">{dashboardStats.bestScore}%</h3>
             </div>
           </div>
 
@@ -131,7 +183,7 @@ const CandidateDashboard = () => {
               <p className="text-sm font-medium text-muted-foreground">
                 Next Test
               </p>
-              <h3 className="text-lg font-medium">Today</h3>
+              <h3 className="text-lg font-medium">{dashboardStats.nextTest}</h3>
             </div>
           </div>
         </div>
@@ -140,14 +192,24 @@ const CandidateDashboard = () => {
         <div>
           <h2 className="text-xl font-semibold mb-4">Pending Tests</h2>
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-            {mockTests.map((test) => (
-              <TestCard
-                key={test.id}
-                {...test}
-                onAction={handleTestAction}
-                viewType="candidate"
-              />
-            ))}
+            {testsLoading ? (
+              <div className="col-span-full text-center py-8">
+                <p className="text-muted-foreground">Loading tests...</p>
+              </div>
+            ) : pendingTests.length > 0 ? (
+              pendingTests.map((test) => (
+                <TestCard
+                  key={test.id}
+                  {...test}
+                  onAction={handleTestAction}
+                  viewType="candidate"
+                />
+              ))
+            ) : (
+              <div className="col-span-full text-center py-8">
+                <p className="text-muted-foreground">No pending tests available</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -155,14 +217,24 @@ const CandidateDashboard = () => {
         <div>
           <h2 className="text-xl font-semibold mb-4">Completed Tests</h2>
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-            {mockCompletedTests.map((test) => (
-              <TestCard
-                key={test.id}
-                {...test}
-                onAction={handleTestAction}
-                viewType="candidate"
-              />
-            ))}
+            {attemptsLoading ? (
+              <div className="col-span-full text-center py-8">
+                <p className="text-muted-foreground">Loading completed tests...</p>
+              </div>
+            ) : completedTests.length > 0 ? (
+              completedTests.map((test) => (
+                <TestCard
+                  key={test.id}
+                  {...test}
+                  onAction={handleTestAction}
+                  viewType="candidate"
+                />
+              ))
+            ) : (
+              <div className="col-span-full text-center py-8">
+                <p className="text-muted-foreground">No completed tests yet</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -170,4 +242,11 @@ const CandidateDashboard = () => {
   );
 };
 
-export default CandidateDashboard;
+// Wrap the component with DashboardProvider
+const CandidateDashboardWithProvider = () => (
+  <DashboardProvider>
+    <CandidateDashboard />
+  </DashboardProvider>
+);
+
+export default CandidateDashboardWithProvider;

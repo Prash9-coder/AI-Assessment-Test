@@ -54,6 +54,7 @@ export const AIQuizGenerator = ({
   });
   const [questions, setQuestions] = useState([]);
   const [progress, setProgress] = useState(0);
+  const [progressMessage, setProgressMessage] = useState("");
   const [isMounted, setIsMounted] = useState(false);
   const [error, setError] = useState(null);
 
@@ -61,17 +62,44 @@ export const AIQuizGenerator = ({
     setIsMounted(true);
   }, []);
 
+  // Sync aiConfig with testDetails when testDetails changes
+  useEffect(() => {
+    if (testDetails) {
+      setAIConfig(prev => ({
+        ...prev,
+        topic: testDetails.title || prev.topic,
+        instructions: testDetails.description || prev.instructions,
+        questionCount: testDetails.questionCount || prev.questionCount,
+        duration: testDetails.duration || prev.duration,
+        dueDate: testDetails.dueDate || prev.dueDate,
+      }));
+    }
+  }, [testDetails]);
+
   const handleChange = useCallback(
     (field, value) => {
+      console.log("🤖 AI Config change:", field, "=", value);
       const newConfig = { ...aiConfig, [field]: value };
       setAIConfig(newConfig);
 
-      if (onSettingsUpdated && (field === "dueDate" || field === "duration")) {
-        const settingsUpdate = {
-          dueDate: newConfig.dueDate,
-          duration: newConfig.duration,
-        };
-        onSettingsUpdated(settingsUpdate);
+      if (onSettingsUpdated) {
+        const settingsUpdate = {};
+        
+        // Update relevant fields that should be synced with parent
+        if (field === "topic") {
+          settingsUpdate.title = value;
+        } else if (field === "instructions") {
+          settingsUpdate.description = value;
+        } else if (field === "dueDate") {
+          settingsUpdate.dueDate = value;
+        } else if (field === "duration") {
+          settingsUpdate.duration = value;
+        }
+        
+        if (Object.keys(settingsUpdate).length > 0) {
+          console.log("🤖 Updating parent with:", settingsUpdate);
+          onSettingsUpdated(settingsUpdate);
+        }
       }
     },
     [aiConfig, onSettingsUpdated]
@@ -86,7 +114,7 @@ export const AIQuizGenerator = ({
     ];
   };
 
-  const extractOptions = (questionData) => {
+  const extractOptions = useCallback((questionData) => {
     if (questionData.options && Array.isArray(questionData.options)) {
       return questionData.options.map((opt, index) => {
         if (typeof opt === "string") {
@@ -220,13 +248,32 @@ export const AIQuizGenerator = ({
     }
 
     return createDefaultOptions();
-  };
+  }, []);
 
   const generateQuestions = useCallback(async () => {
     setLoading(true);
     setProgress(0);
+    setProgressMessage("Initializing...");
     setQuestions([]);
     setError(null);
+
+    // 🚀 Performance: Show progressive feedback
+    const progressSteps = [
+      { step: 10, message: "Connecting to AI service..." },
+      { step: 25, message: "Analyzing topic and difficulty..." },
+      { step: 50, message: "Generating questions..." },
+      { step: 75, message: "Formatting and validating..." },
+      { step: 90, message: "Almost done..." },
+    ];
+
+    let currentProgressIndex = 0;
+    const progressInterval = setInterval(() => {
+      if (currentProgressIndex < progressSteps.length) {
+        setProgress(progressSteps[currentProgressIndex].step);
+        setProgressMessage(progressSteps[currentProgressIndex].message);
+        currentProgressIndex++;
+      }
+    }, 2000); // Slower updates for better UX
 
     try {
       const response = await axios.post(
@@ -238,16 +285,27 @@ export const AIQuizGenerator = ({
           num_questions: aiConfig.questionCount,
         },
         {
+          timeout: 60000, // 1 minute timeout - reduced for better UX
           onUploadProgress: (progressEvent) => {
-            const percentComplete = Math.round(
-              (progressEvent.loaded / progressEvent.total) * 100
-            );
-            setProgress(percentComplete);
+            if (progressEvent.total) {
+              const uploadProgress = Math.round(
+                (progressEvent.loaded / progressEvent.total) * 100
+              );
+              setProgress(Math.min(95, 50 + (uploadProgress * 0.4))); // Map upload progress to 50-90%
+            }
           },
         }
       );
 
+      clearInterval(progressInterval);
+      setProgress(100);
+      setProgressMessage("Questions generated successfully!");
+
       const generatedQuestions = response.data?.questions || [];
+      const generationTime = response.data?.generation_time || 0;
+      const isCached = response.data?.cached || false;
+
+      console.log(`🚀 Questions generated in ${generationTime}s ${isCached ? '(cached)' : '(fresh)'}`);
 
       if (generatedQuestions.length > 0) {
         const formattedQuestions = generatedQuestions.map(
@@ -276,22 +334,42 @@ export const AIQuizGenerator = ({
         ) {
           onQuestionsGenerated(formattedQuestions);
         }
+
+        // Show success message with timing info
+        if (generationTime < 5) {
+          console.log("⚡ Fast generation!", generationTime + "s");
+        } else if (generationTime > 30) {
+          console.log("🐌 Slow generation detected:", generationTime + "s");
+        }
       } else {
         setError(
           "No questions were generated. Please try a different topic or settings."
         );
       }
     } catch (err) {
-      let errorMessage =
-        "Failed to generate questions. Please check your network connection and try again.";
-      if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
+      clearInterval(progressInterval);
+      
+      let errorMessage = "Failed to generate questions. ";
+      
+      if (err.code === 'ECONNABORTED') {
+        errorMessage += "Request timed out after 1 minute. Try reducing the number of questions or simplifying the topic.";
+      } else if (err.response?.status === 500) {
+        errorMessage += "AI service error. Try with fewer questions (3-5) or a simpler topic.";
+      } else if (err.response?.data?.message) {
+        errorMessage += err.response.data.message;
+      } else if (err.message.includes('Network Error')) {
+        errorMessage += "Cannot connect to AI service. Please check if the Flask server is running on port 5000.";
+      } else {
+        errorMessage += "Try with fewer questions or check your network connection.";
       }
+      
       setError(errorMessage);
+      console.error("AI Generation Error:", err);
     } finally {
+      clearInterval(progressInterval);
       setLoading(false);
     }
-  }, [aiConfig, onQuestionsGenerated]);
+  }, [aiConfig, onQuestionsGenerated, extractOptions]);
 
   const generatePDF = useCallback(() => {
     const doc = new jsPDF({
@@ -475,8 +553,7 @@ export const AIQuizGenerator = ({
           >
             {loading ? (
               <React.Fragment>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating
-                Questions...
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating Questions...
               </React.Fragment>
             ) : (
               <React.Fragment>
@@ -488,7 +565,7 @@ export const AIQuizGenerator = ({
           {error && <p className="text-center text-sm text-red-500">{error}</p>}
           {loading && (
             <div className="text-center text-sm text-muted-foreground animate-pulse">
-              Our AI is creating questions for your quiz...
+              {progressMessage || "Our AI is creating questions for your quiz..."}
             </div>
           )}
         </CardContent>
@@ -496,14 +573,17 @@ export const AIQuizGenerator = ({
 
       {loading && (
         <div className="mb-4">
-          <div className="w-full bg-gray-300 h-2 rounded">
+          <div className="w-full bg-gray-200 h-3 rounded-full overflow-hidden">
             <div
-              className="bg-blue-600 h-2 rounded"
+              className="bg-gradient-to-r from-blue-500 to-purple-600 h-3 rounded-full transition-all duration-500 ease-out"
               style={{ width: `${progress}%` }}
             ></div>
           </div>
-          <p className="text-center mt-2">
-            Generating Questions... {progress}%
+          <p className="text-center mt-2 text-sm font-medium">
+            {progressMessage} ({progress}%)
+          </p>
+          <p className="text-center text-xs text-muted-foreground mt-1">
+            {progress < 50 ? "This may take 30-60 seconds..." : "Almost there!"}
           </p>
         </div>
       )}

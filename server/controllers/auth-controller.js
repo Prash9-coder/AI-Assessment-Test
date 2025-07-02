@@ -41,23 +41,39 @@ const register = async (req, res) => {
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    console.log("🔐 Login attempt:", { email, password: "***" });
 
     const userExists = await User.findOne({ email });
     if (!userExists) {
+      console.log("❌ User not found:", email);
       return res.status(400).json({ message: "Invalid email or password" });
     }
+
+    console.log("👤 User found:", { 
+      email: userExists.email, 
+      role: userExists.role,
+      hasPassword: !!userExists.password,
+      passwordLength: userExists.password?.length 
+    });
 
     let isValidPassword = false;
 
     if (userExists.role === "hr") {
       // HR uses plain password comparison
       isValidPassword = userExists.password === password;
+      console.log("🔐 HR password check:", { 
+        stored: userExists.password, 
+        provided: password, 
+        match: isValidPassword 
+      });
     } else {
       // Candidate uses bcrypt comparison
       isValidPassword = await userExists.comparePassword(password);
+      console.log("🔐 Candidate password check:", { match: isValidPassword });
     }
 
     if (!isValidPassword) {
+      console.log("❌ Password validation failed");
       return res.status(401).json({ message: "Invalid email or password" });
     }
 

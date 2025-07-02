@@ -41,6 +41,13 @@ const Dashboard = () => {
         }
 
         const data = await res.json();
+        console.log("📋 Received tests data:", data);
+        console.log("📋 First test:", data[0] ? {
+          title: data[0].title,
+          description: data[0].description,
+          category: data[0].category,
+          questionsCount: data[0].questions?.length
+        } : "No tests");
         setTests(data || []);
       } catch (error) {
         console.error("❌ Failed to fetch tests:", error);
@@ -57,11 +64,53 @@ const Dashboard = () => {
     fetchTests();
   }, [toast]);
 
-  const handleTestAction = (action, id) => {
+  const handleTestAction = async (action, id) => {
     if (action === "view-results") {
       navigate(`/hr/test/${id}/results`);
     } else if (action === "edit") {
       navigate(`/hr/edit-test/${id}`);
+    } else if (action === "publish") {
+      try {
+        const response = await fetch(`http://localhost:3000/api/hr/toggle-publish/${id}`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          // Update the test in the local state
+          setTests(prevTests => 
+            prevTests.map(test => 
+              test._id === id 
+                ? { ...test, published: data.test.published }
+                : test
+            )
+          );
+
+          toast({
+            title: data.test.published ? "Test Published!" : "Test Unpublished",
+            description: data.test.published 
+              ? "Test is now visible to candidates" 
+              : "Test is no longer visible to candidates",
+          });
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: data.error || "Failed to update test status",
+          });
+        }
+      } catch (error) {
+        console.error("❌ Error toggling publish status:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Network error occurred",
+        });
+      }
     } else {
       toast({
         title: "Action triggered",
@@ -71,8 +120,8 @@ const Dashboard = () => {
   };
 
   const totalTests = tests.length;
-  const completedTests = tests.filter((t) => t.status === "completed").length;
-  const inProgressTests = tests.filter((t) => t.status === "in-progress").length;
+  const publishedTests = tests.filter((t) => t.published === true).length;
+  const draftTests = tests.filter((t) => t.published === false || !t.published).length;
   const violations = tests.filter((t) => t.hasViolation).length;
 
 
@@ -107,8 +156,8 @@ const Dashboard = () => {
           <TabsContent value="overview" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <DashboardStatCard icon={<FileText className="h-6 w-6 text-primary" />} label="Total Tests" value={totalTests} bg="primary" />
-              <DashboardStatCard icon={<CheckCircle className="h-6 w-6 text-success" />} label="Completed" value={completedTests} bg="success" />
-              <DashboardStatCard icon={<Clock className="h-6 w-6 text-warning" />} label="In Progress" value={inProgressTests} bg="warning" />
+              <DashboardStatCard icon={<CheckCircle className="h-6 w-6 text-success" />} label="Published" value={publishedTests} bg="success" />
+              <DashboardStatCard icon={<Clock className="h-6 w-6 text-warning" />} label="Draft" value={draftTests} bg="warning" />
               <DashboardStatCard icon={<AlertCircle className="h-6 w-6 text-destructive" />} label="Violations" value={violations} bg="destructive" />
             </div>
 
