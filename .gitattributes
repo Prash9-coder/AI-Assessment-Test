@@ -1,7 +1,0 @@
-# Auto detect text files and perform LF normalization
-* text=auto
-flask-server/proctoring_app/shape_predictor_68_face_landmarks.dat filter=lfs diff=lfs merge=lfs -text
-flask-server/proctoring_app/venv/lib/python3.8/site-packages/cv2/cv2.abi3.so filter=lfs diff=lfs merge=lfs -text
-flask-server/proctoring_app/venv/lib/python3.8/site-packages/numpy/.dylibs/libopenblas64_.0.dylib filter=lfs diff=lfs merge=lfs -text
-flask-server/proctoring_app/venv/lib/python3.8/site-packages/scipy/.dylibs/libopenblas.0.dylib filter=lfs diff=lfs merge=lfs -text
-flask-server/proctoring_app/venv/lib/python3.8/site-packages/torch/lib/libtorch_cpu.dylib filter=lfs diff=lfs merge=lfs -text
