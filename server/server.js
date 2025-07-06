@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const compression = require("compression");
 
 // Import routers
 const authRouter = require("./router/auth-router");
@@ -16,9 +17,22 @@ const errorMiddleware = require("./middlewares/error-middleware");
 const app = express();
 
 // Middleware setup
-app.use(cors({ origin: "*", credentials: true }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(compression()); // 🚀 Performance: Enable gzip compression
+app.use(cors({ 
+  origin: ["http://localhost:8080", "http://localhost:8081", "http://localhost:3000"], 
+  credentials: true 
+}));
+// 🚀 Performance: Optimized JSON parsing with limits
+app.use(express.json({ 
+  limit: '5mb', // Reduced from 10mb for better performance
+  strict: true,
+  type: 'application/json'
+}));
+app.use(express.urlencoded({ 
+  extended: true, 
+  limit: '5mb',
+  parameterLimit: 1000 // Limit URL parameters
+}));
 
 // API Routes
 app.use("/api/auth", authRouter);

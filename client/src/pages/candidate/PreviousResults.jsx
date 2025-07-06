@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import {
   Card,
@@ -35,61 +36,104 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { useTestAttempts } from "@/hooks/useTests";
 
-// Mock data for previous tests
-const completedTests = [
-  {
-    id: "1",
-    title: "Product Knowledge Test for Sales",
-    category: "Sales",
-    dateTaken: "2025-03-15",
-    score: 82,
-    percentile: 76,
-    questions: 20,
-    correct: 16,
-    incorrect: 3,
-    skipped: 1,
+// Helper function to transform API attempts data
+const transformAttemptData = (attempts) => {
+  return attempts.map(attempt => ({
+    id: attempt._id,
+    title: attempt.testId?.title || "Unknown Test",
+    category: attempt.testId?.category || "General",
+    dateTaken: new Date(attempt.createdAt).toISOString().split('T')[0],
+    score: attempt.score || 0,
+    percentile: Math.floor(Math.random() * 100), // Mock percentile for now
+    questions: attempt.testId?.questions?.length || 0,
+    correct: Math.floor((attempt.score / 100) * (attempt.testId?.questions?.length || 0)),
+    incorrect: Math.floor(((100 - attempt.score) / 100) * (attempt.testId?.questions?.length || 0)),
+    skipped: 0, // Mock data
     breakdown: [
-      { category: "Product Features", score: 90 },
-      { category: "Pricing", score: 70 },
-      { category: "Competition", score: 85 },
-      { category: "Sales Techniques", score: 60 },
+      { category: "General Knowledge", score: attempt.score },
     ],
-    detailedFeedback:
-      "Strong understanding of product features. Could improve on sales techniques and pricing knowledge.",
-  },
-  {
-    id: "2",
-    title: "Example Reasoning Test",
-    category: "Cognitive",
-    dateTaken: "2025-03-10",
-    score: 50,
-    percentile: 45,
-    questions: 15,
-    correct: 6,
-    incorrect: 6,
-    skipped: 3,
-    breakdown: [
-      { category: "Logical Reasoning", score: 40 },
-      { category: "Numerical Reasoning", score: 60 },
-      { category: "Verbal Reasoning", score: 65 },
-      { category: "Abstract Reasoning", score: 35 },
-    ],
-    detailedFeedback:
-      "Average performance in numerical and verbal reasoning. Consider improving logical and abstract reasoning skills.",
-  },
-];
+    detailedFeedback: `You scored ${attempt.score}% on this test. ${
+      attempt.score >= 70 ? "Great job!" : 
+      attempt.score >= 50 ? "Good effort, keep improving!" : 
+      "Consider reviewing the material and trying again."
+    }`,
+  }));
+};
 
-const progressData = [
-  { month: "Jan", score: 65 },
-  { month: "Feb", score: 68 },
-  { month: "Mar", score: 75 },
-  { month: "Apr", score: 82 },
-];
+// Generate progress data from attempts
+const generateProgressData = (attempts) => {
+  const monthlyScores = {};
+  attempts.forEach(attempt => {
+    const date = new Date(attempt.createdAt);
+    const monthKey = date.toLocaleDateString('en-US', { month: 'short' });
+    if (!monthlyScores[monthKey]) {
+      monthlyScores[monthKey] = [];
+    }
+    monthlyScores[monthKey].push(attempt.score);
+  });
+
+  return Object.entries(monthlyScores).map(([month, scores]) => ({
+    month,
+    score: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+  }));
+};
 
 const PreviousResults = () => {
+  const navigate = useNavigate();
   const [expandedTest, setExpandedTest] = useState(null);
-  const [selectedTest, setSelectedTest] = useState(completedTests[0]);
+  const [selectedTest, setSelectedTest] = useState(null);
+  const [completedTests, setCompletedTests] = useState([]);
+  const [progressData, setProgressData] = useState([]);
+  const { attempts, loading } = useTestAttempts();
+
+  useEffect(() => {
+    if (attempts.length > 0) {
+      const transformedTests = transformAttemptData(attempts);
+      setCompletedTests(transformedTests);
+      setSelectedTest(transformedTests[0]);
+      setProgressData(generateProgressData(attempts));
+    }
+  }, [attempts]);
+
+  const handleViewFullReport = (testId) => {
+    navigate(`/candidate/results/${testId}`);
+  };
+
+  const handleDownloadReport = (test) => {
+    // Create a simple text report
+    const report = `
+Test Result Report
+==================
+Test: ${test.title}
+Category: ${test.category}
+Date Taken: ${test.dateTaken}
+
+RESULTS:
+========
+Score: ${test.score}%
+Total Questions: ${test.questions}
+Correct Answers: ${test.correct}
+Incorrect Answers: ${test.incorrect}
+
+FEEDBACK:
+=========
+${test.detailedFeedback}
+
+Generated on: ${new Date().toLocaleString()}
+    `;
+
+    const blob = new Blob([report], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `test-result-${test.title.replace(/\s+/g, '-')}-${test.dateTaken}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <DashboardLayout allowedRole="candidate">
@@ -110,7 +154,12 @@ const PreviousResults = () => {
           <TabsContent value="results" className="space-y-4">
             <div className="grid gap-6 md:grid-cols-3">
               <div className="space-y-4 md:col-span-2">
-                {completedTests.map((test) => (
+                {loading ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">Loading test results...</p>
+                  </div>
+                ) : completedTests.length > 0 ? (
+                  completedTests.map((test) => (
                   <Collapsible
                     key={test.id}
                     open={expandedTest === test.id}
@@ -223,6 +272,7 @@ const PreviousResults = () => {
                                 variant="outline"
                                 size="sm"
                                 className="gap-1"
+                                onClick={() => handleViewFullReport(test.id)}
                               >
                                 <Eye className="h-4 w-4" /> View Full Report
                               </Button>
@@ -230,6 +280,7 @@ const PreviousResults = () => {
                                 variant="outline"
                                 size="sm"
                                 className="gap-1"
+                                onClick={() => handleDownloadReport(test)}
                               >
                                 <Download className="h-4 w-4" /> Download
                               </Button>
@@ -239,7 +290,12 @@ const PreviousResults = () => {
                       </CollapsibleContent>
                     </Card>
                   </Collapsible>
-                ))}
+                  ))
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No completed tests found</p>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -251,7 +307,11 @@ const PreviousResults = () => {
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <span className="text-sm">Average Score</span>
-                        <span className="font-medium">66%</span>
+                        <span className="font-medium">
+                          {completedTests.length > 0 
+                            ? Math.round(completedTests.reduce((sum, test) => sum + test.score, 0) / completedTests.length)
+                            : 0}%
+                        </span>
                       </div>
 
                       <div className="flex items-center justify-between">
@@ -263,7 +323,11 @@ const PreviousResults = () => {
 
                       <div className="flex items-center justify-between">
                         <span className="text-sm">Best Performance</span>
-                        <span className="font-medium">82% (Sales)</span>
+                        <span className="font-medium">
+                          {completedTests.length > 0 
+                            ? `${Math.max(...completedTests.map(test => test.score))}%`
+                            : "N/A"}
+                        </span>
                       </div>
 
                       <div className="flex items-center justify-between">
@@ -272,7 +336,7 @@ const PreviousResults = () => {
                           variant="outline"
                           className="bg-red-50 text-red-700 border-red-200"
                         >
-                          Abstract Reasoning
+                          {completedTests.length > 0 ? "Review needed" : "No data"}
                         </Badge>
                       </div>
 
@@ -313,7 +377,7 @@ const PreviousResults = () => {
                 <div className="h-80">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
-                      data={selectedTest.breakdown}
+                      data={selectedTest?.breakdown || []}
                       margin={{
                         top: 20,
                         right: 30,

@@ -22,53 +22,30 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { AlertTriangle, Clock, FileText, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useTests } from "@/hooks/useTests";
 
-// Mock test data
-const availableTests = [
-  {
-    id: "1",
-    title: "Programming Skills Assessment",
-    category: "Programming",
-    duration: 30,
-    questions: 15,
-    deadline: "2025-05-15",
+// Helper function to transform API test data
+const transformApiTestData = (apiTests) => {
+  return apiTests.map(test => ({
+    id: test._id,
+    title: test.title,
+    category: test.category || "General",
+    duration: test.duration || 30,
+    questions: test.questions?.length || 0,
+    deadline: test.deadline ? new Date(test.deadline).toISOString().split('T')[0] : "No deadline",
     status: "available",
-  },
-  {
-    id: "2",
-    title: "Customer Care Periodic Test",
-    category: "Customer Service",
-    duration: 20,
-    questions: 10,
-    deadline: "2025-04-30",
-    status: "available",
-  },
-  {
-    id: "3",
-    title: "Sales Techniques Evaluation",
-    category: "Sales",
-    duration: 25,
-    questions: 12,
-    deadline: "2025-05-10",
-    status: "available",
-  },
-  {
-    id: "4",
-    title: "Leadership Assessment",
-    category: "Management",
-    duration: 40,
-    questions: 20,
-    deadline: "2025-05-20",
-    status: "available",
-  },
-];
+  }));
+};
 
 const StartTest = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTest, setSelectedTest] = useState(null);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { tests, loading } = useTests();
 
+  // Transform API data and filter
+  const availableTests = transformApiTestData(tests);
   const filteredTests = availableTests.filter(
     (test) =>
       test.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -90,8 +67,8 @@ const StartTest = () => {
       description: "Preparing your test environment...",
     });
 
-    // Navigate to the test taking page
-    navigate("/candidate/take-test");
+    // Navigate to the test taking page with test ID
+    navigate(`/candidate/take-test?testId=${selectedTest}`);
   };
 
   return (
@@ -252,7 +229,16 @@ const StartTest = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredTests.length > 0 ? (
+                    {loading ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={7}
+                          className="text-center py-4 text-muted-foreground"
+                        >
+                          Loading tests...
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredTests.length > 0 ? (
                       filteredTests.map((test) => (
                         <TableRow key={test.id}>
                           <TableCell className="font-medium">
@@ -287,7 +273,7 @@ const StartTest = () => {
                           colSpan={7}
                           className="text-center py-4 text-muted-foreground"
                         >
-                          No tests found matching your search criteria
+                          {searchQuery ? "No tests found matching your search criteria" : "No tests available"}
                         </TableCell>
                       </TableRow>
                     )}

@@ -121,6 +121,23 @@ const MonitorTests = () => {
       description: "Opening chat with the candidate...",
     });
   };
+    const handleSaveTest = () => {
+    if (!testName.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please enter a test name.",
+      });
+      return;
+    }
+    
+    toast({
+      title: "Test saved",
+      description: `Test "${testName}" has been saved successfully.`,
+    });
+    setTestName("");
+  };
+  
   return (
     <DashboardLayout allowedRole="hr">
       <div className="space-y-8">

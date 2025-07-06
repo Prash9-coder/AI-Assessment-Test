@@ -17,6 +17,7 @@ const authMiddleware = async (req, res, next) => {
     }
 
     req.user = user;
+    console.log("🔐 Authenticated user:", { id: user._id, email: user.email, role: user.role });
     next();
   } catch (error) {
     console.error("Auth Middleware Error:", error);

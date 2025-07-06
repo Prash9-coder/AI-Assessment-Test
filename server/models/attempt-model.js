@@ -17,4 +17,9 @@ const attemptSchema = new mongoose.Schema({
   duration: Number
 });
 
+// 🚀 Performance: Add indexes for frequently queried fields
+attemptSchema.index({ candidateId: 1, testId: 1 }, { unique: true }); // Prevent duplicate attempts
+attemptSchema.index({ candidateId: 1, startedAt: -1 }); // For getting user's attempts sorted by date
+attemptSchema.index({ testId: 1, status: 1 }); // For getting test statistics
+
 module.exports = mongoose.model("Attempt", attemptSchema);

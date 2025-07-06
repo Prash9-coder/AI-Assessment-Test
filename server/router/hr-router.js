@@ -6,6 +6,9 @@ const {
   getMonitoredTests,
   createTest,
   getHrCreatedTests,
+  assignTestToCandidates,
+  getTestAssignments,
+  toggleTestPublish,
 } = require("../controllers/hr-controller");
 
 // ✅ Route to monitor candidates
@@ -16,5 +19,14 @@ router.post("/create-test", authMiddleware, createTest);
 
 // ✅ Route to get tests created by this HR
 router.get("/my-tests", authMiddleware, getHrCreatedTests);
+
+// ✅ Route to assign test to candidates
+router.post("/assign-test", authMiddleware, assignTestToCandidates);
+
+// ✅ Route to get assignments for a specific test
+router.get("/test-assignments/:testId", authMiddleware, getTestAssignments);
+
+// ✅ Route to toggle test publish status
+router.post("/toggle-publish/:testId", authMiddleware, toggleTestPublish);
 
 module.exports = router;
