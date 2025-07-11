@@ -42,6 +42,24 @@ export function ProctoringScreen({ onViolation, testTimeMinutes = 30 }) {
     };
   }, [violations, onViolation]);
 
+  // Copy/Paste Lock
+  useEffect(() => {
+    const disableCopyPaste = (e) => {
+      e.preventDefault();
+      alert("Copy/Paste is disabled during the test.");
+    };
+
+    document.addEventListener("copy", disableCopyPaste);
+    document.addEventListener("cut", disableCopyPaste);
+    document.addEventListener("paste", disableCopyPaste);
+
+    return () => {
+      document.removeEventListener("copy", disableCopyPaste);
+      document.removeEventListener("cut", disableCopyPaste);
+      document.removeEventListener("paste", disableCopyPaste);
+    };
+  }, []);
+
   // Timer countdown
   useEffect(() => {
     const timer = setInterval(() => {
