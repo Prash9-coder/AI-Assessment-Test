@@ -5,12 +5,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { TestAnalytics } from "@/components/reports/TestAnalytics";
 import { CandidatePerformanceTable } from "@/components/reports/CandidatePerformanceTable";
-import { ArrowLeft, Download, Mail, Share } from "lucide-react";
+import { ArrowLeft, Download, Mail, Share, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const TestResults = () => {
   const { testId } = useParams();
   const [activeTab, setActiveTab] = useState("analytics");
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  console.log("🔍 TestResults: testId from URL params:", testId);
+
+  const handleRefresh = () => {
+    setRefreshKey(prev => prev + 1);
+  };
 
   return (
     <DashboardLayout allowedRole="hr">
@@ -26,6 +33,10 @@ const TestResults = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleRefresh}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Refresh Data
+            </Button>
             <Button variant="outline" size="sm">
               <Mail className="mr-2 h-4 w-4" />
               Email Results
@@ -53,11 +64,11 @@ const TestResults = () => {
           </TabsList>
 
           <TabsContent value="analytics" className="mt-6">
-            <TestAnalytics testId={testId || ""} />
+            <TestAnalytics key={`analytics-${refreshKey}`} testId={testId || ""} />
           </TabsContent>
 
           <TabsContent value="candidates" className="mt-6">
-            <CandidatePerformanceTable testId={testId || ""} />
+            <CandidatePerformanceTable key={`candidates-${refreshKey}`} testId={testId || ""} />
           </TabsContent>
         </Tabs>
       </div>

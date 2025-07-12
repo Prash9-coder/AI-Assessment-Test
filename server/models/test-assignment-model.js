@@ -33,7 +33,6 @@ const testAssignmentSchema = new mongoose.Schema(
     },
     accessToken: {
       type: String,
-      unique: true,
       required: true
     },
     expiresAt: {
@@ -46,7 +45,7 @@ const testAssignmentSchema = new mongoose.Schema(
 
 // Index for efficient queries
 testAssignmentSchema.index({ testId: 1, candidateEmail: 1 }, { unique: true });
-testAssignmentSchema.index({ accessToken: 1 });
+testAssignmentSchema.index({ accessToken: 1 }, { unique: true });
 testAssignmentSchema.index({ candidateId: 1 });
 
 module.exports = mongoose.model("TestAssignment", testAssignmentSchema);

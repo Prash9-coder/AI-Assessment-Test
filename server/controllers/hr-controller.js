@@ -1,6 +1,7 @@
 const User = require("../models/user-model");
 const Test = require("../models/test-model");
 const TestAssignment = require("../models/test-assignment-model");
+const Attempt = require("../models/attempt-model");
 const crypto = require("crypto");
 
 // ✅ GET /api/hr/monitor - Fetch candidates for monitoring
@@ -222,6 +223,257 @@ const toggleTestPublish = async (req, res) => {
   }
 };
 
+// ✅ GET /api/hr/test-reports - Get test reports with completion data
+const getTestReports = async (req, res) => {
+  const startTime = Date.now();
+  console.log("📊 Fetching test reports for HR:", req.user._id);
+  
+  try {
+    // Add pagination support
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50; // Default to 50 tests per page
+    const skip = (page - 1) * limit;
+    
+    console.log("🔍 Querying tests...");
+    const testsStartTime = Date.now();
+    
+    // Get tests created by this HR with pagination
+    const tests = await Test.find({ createdBy: req.user._id })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+    
+    const testsEndTime = Date.now();
+    console.log(`📊 Found ${tests.length} tests for HR (page ${page}) in ${testsEndTime - testsStartTime}ms`);
+    
+    if (tests.length === 0) {
+      return res.status(200).json([]);
+    }
+
+    // Get test IDs for batch queries
+    const testIds = tests.map(test => test._id);
+    
+    console.log("🔍 Querying assignments...");
+    const assignmentsStartTime = Date.now();
+    
+    // Batch query for all assignments
+    const allAssignments = await TestAssignment.find({ testId: { $in: testIds } });
+    
+    const assignmentsEndTime = Date.now();
+    console.log(`📊 Found ${allAssignments.length} total assignments in ${assignmentsEndTime - assignmentsStartTime}ms`);
+    
+    console.log("🔍 Querying attempts...");
+    const attemptsStartTime = Date.now();
+    
+    // Batch query for all completed attempts
+    const allAttempts = await Attempt.find({ 
+      testId: { $in: testIds }, 
+      status: "completed" 
+    });
+    
+    const attemptsEndTime = Date.now();
+    console.log(`📊 Found ${allAttempts.length} total completed attempts in ${attemptsEndTime - attemptsStartTime}ms`);
+    
+    // Group assignments and attempts by testId
+    const assignmentsByTest = {};
+    const attemptsByTest = {};
+    
+    allAssignments.forEach(assignment => {
+      const testId = assignment.testId.toString();
+      if (!assignmentsByTest[testId]) assignmentsByTest[testId] = [];
+      assignmentsByTest[testId].push(assignment);
+    });
+    
+    allAttempts.forEach(attempt => {
+      const testId = attempt.testId.toString();
+      if (!attemptsByTest[testId]) attemptsByTest[testId] = [];
+      attemptsByTest[testId].push(attempt);
+    });
+    
+    // Generate reports
+    const reports = tests.map(test => {
+      const testId = test._id.toString();
+      const assignments = assignmentsByTest[testId] || [];
+      const completedAttempts = attemptsByTest[testId] || [];
+      
+      // Calculate statistics
+      const totalCandidates = assignments.length;
+      const completedCount = completedAttempts.length;
+      const scores = completedAttempts.map(attempt => attempt.score).filter(score => score !== null);
+      const avgScore = scores.length > 0 ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0;
+      const passRate = completedCount > 0 ? (scores.filter(score => score >= (test.passingScore || 60)).length / completedCount) * 100 : 0;
+      
+      return {
+        id: test._id,
+        title: test.title,
+        category: test.category,
+        candidates: totalCandidates,
+        completed: completedCount,
+        avgScore: Math.round(avgScore * 10) / 10, // Round to 1 decimal place
+        passRate: Math.round(passRate),
+        createdAt: test.createdAt.toISOString().split('T')[0], // Format as YYYY-MM-DD
+        published: test.published,
+        passingScore: test.passingScore || 60
+      };
+    });
+    
+    const endTime = Date.now();
+    console.log(`📊 Generated reports for ${reports.length} tests`);
+    console.log(`⏱️ Total request time: ${endTime - startTime}ms`);
+    
+    res.status(200).json(reports);
+    
+  } catch (error) {
+    const endTime = Date.now();
+    console.error(`❌ Error fetching test reports after ${endTime - startTime}ms:`, error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+// ✅ GET /api/hr/test-results/:testId - Get detailed results for a specific test
+const getTestResults = async (req, res) => {
+  const startTime = Date.now();
+  console.log("📊 Fetching detailed test results for test:", req.params.testId);
+  
+  try {
+    const { testId } = req.params;
+    
+    console.log("🔍 Verifying test ownership...");
+    const testStartTime = Date.now();
+    
+    // Verify the test belongs to this HR
+    const test = await Test.findOne({ _id: testId, createdBy: req.user._id });
+    if (!test) {
+      return res.status(404).json({ 
+        error: "Test not found or you don't have permission to view its results" 
+      });
+    }
+
+    const testEndTime = Date.now();
+    console.log(`✅ Test verified in ${testEndTime - testStartTime}ms`);
+
+    console.log("🔍 Fetching assignments...");
+    const assignmentsStartTime = Date.now();
+
+    // Get all assignments for this test (optimized query)
+    const assignments = await TestAssignment.find({ testId })
+      .populate('candidateId', 'name email')
+      .lean(); // Use lean() for better performance
+
+    const assignmentsEndTime = Date.now();
+    console.log(`📊 Found ${assignments.length} assignments in ${assignmentsEndTime - assignmentsStartTime}ms`);
+
+    console.log("🔍 Fetching attempts...");
+    const attemptsStartTime = Date.now();
+
+    // Get all attempts for this test (optimized query)
+    const attempts = await Attempt.find({ testId })
+      .populate('candidateId', 'name email')
+      .lean(); // Use lean() for better performance
+
+    const attemptsEndTime = Date.now();
+    console.log(`📊 Found ${attempts.length} attempts in ${attemptsEndTime - attemptsStartTime}ms`);
+
+    console.log("🔄 Processing results...");
+    const processingStartTime = Date.now();
+
+    // Create a map of attempts by candidateId for faster lookup
+    const attemptsByCandidate = new Map();
+    attempts.forEach(attempt => {
+      if (attempt.candidateId && attempt.candidateId._id) {
+        attemptsByCandidate.set(attempt.candidateId._id.toString(), attempt);
+      }
+    });
+
+    // Create a map of assignments by candidateId for faster lookup
+    const assignmentsByCandidate = new Map();
+    assignments.forEach(assignment => {
+      if (assignment.candidateId && assignment.candidateId._id) {
+        assignmentsByCandidate.set(assignment.candidateId._id.toString(), assignment);
+      }
+    });
+
+    // Get all unique candidates (from both assignments and attempts)
+    const allCandidateIds = new Set();
+    
+    // Add candidates from assignments
+    assignments.forEach(assignment => {
+      if (assignment.candidateId?._id) {
+        allCandidateIds.add(assignment.candidateId._id.toString());
+      }
+    });
+    
+    // Add candidates from attempts (even if they don't have assignments)
+    attempts.forEach(attempt => {
+      if (attempt.candidateId?._id) {
+        allCandidateIds.add(attempt.candidateId._id.toString());
+      }
+    });
+
+    console.log(`📊 Found ${allCandidateIds.size} unique candidates (${assignments.length} assignments + ${attempts.length} attempts)`);
+
+    // Combine assignment and attempt data for all candidates
+    const results = Array.from(allCandidateIds).map(candidateIdStr => {
+      const assignment = assignmentsByCandidate.get(candidateIdStr);
+      const attempt = attemptsByCandidate.get(candidateIdStr);
+
+      // Get candidate info from assignment or attempt
+      const candidateInfo = assignment?.candidateId || attempt?.candidateId;
+
+      return {
+        assignmentId: assignment?._id || null,
+        candidateEmail: assignment?.candidateEmail || candidateInfo?.email || 'Unknown',
+        candidateName: candidateInfo?.name || 'Unknown',
+        candidateId: candidateInfo?._id,
+        status: attempt?.status || assignment?.status || 'pending',
+        score: attempt?.score || null,
+        submittedAt: attempt?.submittedAt || null,
+        duration: attempt?.duration || null,
+        assignedAt: assignment?.createdAt || attempt?.startedAt || null,
+        passed: attempt?.score ? attempt.score >= (test.passingScore || 60) : null,
+        hasAssignment: !!assignment,
+        hasAttempt: !!attempt
+      };
+    });
+
+    // Calculate summary statistics
+    const completedResults = results.filter(r => r.status === 'completed');
+    const scores = completedResults.map(r => r.score).filter(s => s !== null);
+    const avgScore = scores.length > 0 ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0;
+    const passRate = completedResults.length > 0 ? (completedResults.filter(r => r.passed).length / completedResults.length) * 100 : 0;
+
+    const summary = {
+      testTitle: test.title,
+      testCategory: test.category,
+      totalAssigned: assignments.length,
+      totalCandidates: results.length, // Total unique candidates (assigned + unassigned)
+      completed: completedResults.length,
+      pending: results.filter(r => r.status === 'pending').length,
+      inProgress: results.filter(r => r.status === 'started' || r.status === 'in-progress').length,
+      avgScore: Math.round(avgScore * 10) / 10,
+      passRate: Math.round(passRate),
+      passingScore: test.passingScore || 60,
+      questionCount: test.questions ? test.questions.length : 0,
+      duration: test.duration || 0,
+      candidatesWithAssignments: results.filter(r => r.hasAssignment).length,
+      candidatesWithoutAssignments: results.filter(r => !r.hasAssignment).length
+    };
+
+    const processingEndTime = Date.now();
+    console.log(`🔄 Results processed in ${processingEndTime - processingStartTime}ms`);
+
+    const endTime = Date.now();
+    console.log(`⏱️ Total getTestResults time: ${endTime - startTime}ms`);
+
+    res.status(200).json({ summary, results });
+    
+  } catch (error) {
+    const endTime = Date.now();
+    console.error(`❌ Error fetching test results after ${endTime - startTime}ms:`, error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
 module.exports = {
   getMonitoredTests,
   createTest,
@@ -229,4 +481,6 @@ module.exports = {
   assignTestToCandidates,
   getTestAssignments,
   toggleTestPublish,
+  getTestReports,
+  getTestResults,
 };

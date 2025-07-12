@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -20,52 +20,55 @@ import {
   FileBarChart,
   Search,
   Users,
+  Loader2,
 } from "lucide-react";
-
-// Sample test data
-const testData = [
-  {
-    id: "1",
-    title: "Programming Skills Assessment",
-    candidates: 45,
-    completed: 38,
-    avgScore: 72.5,
-    passRate: 68,
-    createdAt: "2025-04-01",
-  },
-  {
-    id: "2",
-    title: "Customer Service Training Evaluation",
-    candidates: 32,
-    completed: 30,
-    avgScore: 84.2,
-    passRate: 90,
-    createdAt: "2025-04-05",
-  },
-  {
-    id: "3",
-    title: "Leadership Aptitude Test",
-    candidates: 15,
-    completed: 12,
-    avgScore: 68.7,
-    passRate: 58,
-    createdAt: "2025-04-10",
-  },
-  {
-    id: "4",
-    title: "Sales Techniques Assessment",
-    candidates: 28,
-    completed: 25,
-    avgScore: 76.3,
-    passRate: 72,
-    createdAt: "2025-04-12",
-  },
-];
+import { testsAPI } from "@/services/api";
 
 const Reports = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState("title");
   const [sortDirection, setSortDirection] = useState("asc");
+  const [testReports, setTestReports] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch test reports on component mount
+  useEffect(() => {
+    const fetchTestReports = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        console.log("🔄 Fetching test reports...");
+        const startTime = Date.now();
+        
+        const reports = await testsAPI.getTestReports();
+        
+        const endTime = Date.now();
+        console.log(`✅ Test reports fetched in ${endTime - startTime}ms`);
+        console.log(`📊 Received ${reports.length} test reports`);
+        
+        setTestReports(reports);
+      } catch (err) {
+        console.error("❌ Error fetching test reports:", err);
+        
+        // Provide more specific error messages
+        let errorMessage = "Failed to fetch test reports";
+        if (err.message.includes("timeout")) {
+          errorMessage = "Request timed out. Please check your connection and try again.";
+        } else if (err.message.includes("fetch")) {
+          errorMessage = "Unable to connect to server. Please check if the server is running.";
+        } else if (err.message) {
+          errorMessage = err.message;
+        }
+        
+        setError(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTestReports();
+  }, []);
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -76,7 +79,7 @@ const Reports = () => {
     }
   };
 
-  const filteredTests = testData.filter((test) =>
+  const filteredTests = testReports.filter((test) =>
     test.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -88,6 +91,38 @@ const Reports = () => {
     }
   });
 
+  const handleRefresh = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log("🔄 Refreshing test reports...");
+      const startTime = Date.now();
+      
+      const reports = await testsAPI.getTestReports();
+      
+      const endTime = Date.now();
+      console.log(`✅ Test reports refreshed in ${endTime - startTime}ms`);
+      console.log(`📊 Received ${reports.length} test reports`);
+      
+      setTestReports(reports);
+    } catch (err) {
+      console.error("❌ Error refreshing test reports:", err);
+      
+      let errorMessage = "Failed to refresh test reports";
+      if (err.message.includes("timeout")) {
+        errorMessage = "Request timed out. Please check your connection and try again.";
+      } else if (err.message.includes("fetch")) {
+        errorMessage = "Unable to connect to server. Please check if the server is running.";
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <DashboardLayout allowedRole="hr">
       <div className="space-y-6">
@@ -98,10 +133,20 @@ const Reports = () => {
               View and analyze performance metrics for all your tests
             </p>
           </div>
-          <Button variant="outline">
-            <Download className="mr-2 h-4 w-4" />
-            Export All Data
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleRefresh} disabled={loading}>
+              {loading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 h-4 w-4" />
+              )}
+              {loading ? "Refreshing..." : "Refresh Data"}
+            </Button>
+            <Button variant="outline">
+              <Download className="mr-2 h-4 w-4" />
+              Export All Data
+            </Button>
+          </div>
         </div>
 
         <div className="space-y-4">
@@ -113,9 +158,20 @@ const Reports = () => {
                 className="pl-8"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                disabled={loading}
               />
             </div>
           </div>
+
+          {error && (
+            <div className="rounded-md border border-red-200 bg-red-50 p-4">
+              <div className="flex">
+                <div className="text-sm text-red-700">
+                  <strong>Error:</strong> {error}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="rounded-md border">
             <Table>
@@ -195,61 +251,105 @@ const Reports = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedTests.map((test) => (
-                  <TableRow key={test.id}>
-                    <TableCell className="font-medium">{test.title}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        <span>
-                          {test.completed}/{test.candidates}
-                        </span>
+                {loading ? (
+                  // Loading skeleton rows
+                  Array.from({ length: 3 }).map((_, index) => (
+                    <TableRow key={index}>
+                      <TableCell>
+                        <div className="space-y-2">
+                          <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+                          <div className="h-3 bg-gray-100 rounded animate-pulse w-3/4"></div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="h-4 bg-gray-200 rounded animate-pulse w-16"></div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="h-6 bg-gray-200 rounded animate-pulse w-12"></div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="h-6 bg-gray-200 rounded animate-pulse w-12"></div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="h-4 bg-gray-200 rounded animate-pulse w-20"></div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="h-8 bg-gray-200 rounded animate-pulse w-24"></div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : sortedTests.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8">
+                      <div className="text-muted-foreground">
+                        {searchQuery ? "No tests found matching your search." : "No test reports available yet."}
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={
-                          test.avgScore >= 80
-                            ? "bg-green-50 text-green-700 border-green-200"
-                            : test.avgScore >= 60
-                            ? "bg-amber-50 text-amber-700 border-amber-200"
-                            : "bg-red-50 text-red-700 border-red-200"
-                        }
-                      >
-                        {test.avgScore}%
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={
-                          test.passRate >= 80
-                            ? "bg-green-50 text-green-700 border-green-200"
-                            : test.passRate >= 60
-                            ? "bg-amber-50 text-amber-700 border-amber-200"
-                            : "bg-red-50 text-red-700 border-red-200"
-                        }
-                      >
-                        {test.passRate}%
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span>{test.createdAt}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link to={`/hr/test-results/${test.id}`}>
-                          <FileBarChart className="mr-2 h-4 w-4" />
-                          View Report
-                        </Link>
-                      </Button>
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  sortedTests.map((test) => (
+                    <TableRow key={test.id}>
+                      <TableCell className="font-medium">
+                        <div>
+                          <div>{test.title}</div>
+                          {test.category && (
+                            <div className="text-xs text-muted-foreground">{test.category}</div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Users className="h-4 w-4 text-muted-foreground" />
+                          <span>
+                            {test.completed}/{test.candidates}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={
+                            test.avgScore >= 80
+                              ? "bg-green-50 text-green-700 border-green-200"
+                              : test.avgScore >= 60
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : "bg-red-50 text-red-700 border-red-200"
+                          }
+                        >
+                          {test.completed > 0 ? `${test.avgScore}%` : "N/A"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={
+                            test.passRate >= 80
+                              ? "bg-green-50 text-green-700 border-green-200"
+                              : test.passRate >= 60
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : "bg-red-50 text-red-700 border-red-200"
+                          }
+                        >
+                          {test.completed > 0 ? `${test.passRate}%` : "N/A"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <span>{test.createdAt}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" asChild>
+                          <Link to={`/hr/test-results/${test.id}`}>
+                            <FileBarChart className="mr-2 h-4 w-4" />
+                            View Report
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
