@@ -28,7 +28,7 @@ All candidate pages are now fully integrated with real APIs:
 ```bash
 cd server
 npm install
-npm start
+npm run dev
 ```
 
 ### 2. Start the Frontend Client
@@ -38,44 +38,50 @@ npm install
 npm run dev
 ```
 
-### 3. Test the API Integration
+### 3. Start the AI Question Generator (Flask)
 ```bash
-node test-api.js
+cd flask-server
+pip install -r requirements.txt
+python server.py
 ```
 
-## 📱 How to Use
+### 4. Access the Application
+- Frontend: http://localhost:8080
+- Backend API: http://localhost:3000
+- AI Generator: http://localhost:5000
 
-### For HR Users:
-1. Register/Login as HR at `/hr/login`
-2. Create tests in the HR dashboard
-3. View candidate attempts and results
+## 🎯 Test Accounts
 
-### For Candidates:
-1. Register/Login as candidate at `/login`
-2. View available tests in dashboard
-3. Take tests and view results
+### HR Account (can create tests)
+- Email: hr@example.com
+- Password: password123
 
-## 🔧 Technical Implementation
+### Candidate Account (can take tests)
+- Email: candidate@example.com
+- Password: password123
 
-### Frontend (React + Vite)
-- **Services Layer**: `client/src/services/api.js` - Centralized API calls
-- **Custom Hooks**: `client/src/hooks/useTests.js` - Test data management
-- **Dynamic Components**: All candidate pages now use real data
-- **Error Handling**: Loading states and error messages
-- **Authentication**: JWT token management
+## 📊 Database Structure
 
-### Backend (Node.js + Express)
-- **New Endpoints**: Added `/available` and `/my-attempts` routes
-- **Enhanced Controllers**: Better error handling and data population
-- **Authentication**: JWT middleware for protected routes
-- **Database**: MongoDB with Mongoose ODM
+### Tests Collection
+- Title, description, category
+- Questions with options and correct answers
+- Created by HR users
+- Published/draft status
 
-### Key Files Modified:
-- `client/src/pages/candidate/Dashboard.jsx` - Dynamic dashboard
-- `client/src/pages/candidate/StartTest.jsx` - Live test listing
-- `client/src/pages/candidate/TakeTest.jsx` - Real test taking
-- `client/src/pages/candidate/PreviousResults.jsx` - Actual results
-- `server/controllers/test-controller.js` - Enhanced API endpoints
+### Attempts Collection
+- User attempts with timestamps
+- Individual question responses
+- Final scores and results
+- Violation tracking
+
+## 🔄 Real-time Features
+
+### Files Modified for API Integration:
+- `client/src/pages/candidate/Dashboard.jsx` - Dynamic stats
+- `client/src/pages/candidate/TestList.jsx` - Live test data
+- `client/src/pages/candidate/TestTaking.jsx` - Real test submission
+- `client/src/pages/candidate/TestResults.jsx` - Actual attempt history
+- `server/controllers/test-controller.js` - New API endpoints
 - `server/router/test-router.js` - New routes added
 
 ## 🎯 What's Dynamic Now:
@@ -89,3 +95,55 @@ node test-api.js
 7. **Error Handling**: User-friendly error messages
 
 The system is now fully functional with real data flow between frontend and backend!
+
+---
+
+## 🚀 AI-Tutor Setup Guide
+
+### 1. Install Python Dependencies
+
+Run the following script to install all required Python packages:
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Download Dlib Shape Predictor
+
+Download the face landmark predictor model:
+
+👉 [Download shape_predictor_68_face_landmarks.dat.bz2](https://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2)
+
+Extract the file and place it in the following directory:
+
+```
+flask-server/proctoring_app/shape_predictor_68_face_landmarks.dat
+```
+
+### 3. Run the Application
+
+#### 3.1 Backend Server (Node.js)
+```bash
+cd server
+npm install
+npm run dev
+```
+
+#### 3.2 Frontend Client (React)
+```bash
+cd client
+npm install
+npm run dev
+```
+
+#### 3.3 Proctoring Module (Flask App)
+```bash
+cd flask-server/proctoring_app
+python main.py
+```
+
+#### 3.4 Contact Bot (Flask App)
+```bash
+cd contact-bot
+python contact_bot.py
+```

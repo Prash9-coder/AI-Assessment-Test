@@ -112,3 +112,6 @@ yarn.lock
 # Temporary files
 *.tmp
 *.temp
+=======
+-e "venv/\n__pycache__/\n*.pyc" 
+>>>>>>> upstream/main

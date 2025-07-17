@@ -114,10 +114,27 @@ export function ProctoringScreen({ onViolation, testTimeMinutes = 30 }) {
     };
   }, [violations, onViolation]);
 
+  // Copy/Paste Lock
+  useEffect(() => {
+    const disableCopyPaste = (e) => {
+      e.preventDefault();
+      alert("Copy/Paste is disabled during the test.");
+    };
+
+    document.addEventListener("copy", disableCopyPaste);
+    document.addEventListener("cut", disableCopyPaste);
+    document.addEventListener("paste", disableCopyPaste);
+
+    return () => {
+      document.removeEventListener("copy", disableCopyPaste);
+      document.removeEventListener("cut", disableCopyPaste);
+      document.removeEventListener("paste", disableCopyPaste);
+    };
+  }, []);
+
   // Timer countdown
   useEffect(() => {
     if (!mountedRef.current) return;
-
     const timer = setInterval(() => {
       setTimeRemaining((prev) => {
         if (prev <= 0) {
@@ -131,7 +148,6 @@ export function ProctoringScreen({ onViolation, testTimeMinutes = 30 }) {
     return () => clearInterval(timer);
   }, []);
 
-  // Format time remaining
   const formatTimeRemaining = () => {
     const minutes = Math.floor(timeRemaining / 60);
     const seconds = timeRemaining % 60;
@@ -167,7 +183,6 @@ export function ProctoringScreen({ onViolation, testTimeMinutes = 30 }) {
     return () => clearInterval(interval);
   }, [violations, onViolation]);
 
-  // Toggle position between left and right
   const togglePosition = () => {
     setPosition((prev) => (prev === "right" ? "left" : "right"));
   };
@@ -198,8 +213,7 @@ export function ProctoringScreen({ onViolation, testTimeMinutes = 30 }) {
               <Badge
                 variant={violations.length > 0 ? "destructive" : "outline"}
               >
-                {violations.length}{" "}
-                {violations.length === 1 ? "Alert" : "Alerts"}
+                {violations.length} {violations.length === 1 ? "Alert" : "Alerts"}
               </Badge>
             </div>
           </div>
@@ -221,8 +235,6 @@ export function ProctoringScreen({ onViolation, testTimeMinutes = 30 }) {
                 <CameraOff className="h-8 w-8 text-muted-foreground" />
               </div>
             )}
-
-            {/* Countdown timer */}
             <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-2 py-0.5 rounded">
               {formatTimeRemaining()}
             </div>
@@ -275,8 +287,7 @@ export function ProctoringScreen({ onViolation, testTimeMinutes = 30 }) {
                   ((testTimeMinutes * 60 - timeRemaining) /
                     (testTimeMinutes * 60)) *
                     100
-                )}
-                %
+                )}%
               </span>
             </div>
             <Progress

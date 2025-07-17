@@ -11,6 +11,9 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 import google.generativeai as genai
 
+user_attempts = {}  # { "user_id": attempt_count }
+MAX_ATTEMPTS = 3
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -370,6 +373,23 @@ def clear_cache():
         "message": f"Cache cleared. Removed {old_size} entries.",
         "cache_size": len(question_cache)
     })
+  
+# Attempt Count  
+@app.route("/api/get_attempt/<user_id>", methods=["GET"])
+def get_attempt(user_id):
+    """Return how many times the user has attempted"""
+    attempt = user_attempts.get(user_id, 0)
+    return jsonify({ "attempt": attempt })
+
+@app.route("/api/increment_attempt/<user_id>", methods=["POST"])
+def increment_attempt(user_id):
+    """Increment attempt count for a user unless maxed"""
+    current = user_attempts.get(user_id, 0)
+    if current >= MAX_ATTEMPTS:
+        return jsonify({ "error": "Max attempts reached" }), 403
+
+    user_attempts[user_id] = current + 1
+    return jsonify({ "attempt": user_attempts[user_id] })
 
 if __name__ == '__main__':
     logging.info("🚀 Starting AI Question Generator Server...")

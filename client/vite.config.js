@@ -1,14 +1,14 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { componentTagger } from "lovable-tagger";
-import { fileURLToPath, URL } from 'node:url';
+import path from "path";
 
 // Vite configuration
 export default defineConfig(({ mode }) => ({
   // Server Configuration
   server: {
     host: "::", // Allows connections from any IP address
-    port: 8081, // Sets the development server to listen on port 8081
+    port: 8080, // Sets the development server to listen on port 8080
   },
 
   // Plugins Configuration
@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => ({
   // Aliases for module resolution
   resolve: {
     alias: {
-      "@": fileURLToPath(new URL('./src', import.meta.url)), // Alias "@" to point to the src directory
+      "@": path.resolve(__dirname, "./src"), // Alias "@" to point to the src directory
     },
   },
 }));
