@@ -34,6 +34,3 @@ router.get("/by-token/:token", getTestByToken);
 router.post("/clear-cache", authMiddleware, clearCache);
 
 module.exports = router;
-
-=======
->>>>>>> upstream/main

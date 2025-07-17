@@ -26,7 +26,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { testsAPI } from "@/services/api";
-
+// import { formatDuration } from "@/utils/format";
 export function TestAnalytics({ testId }) {
   const [testData, setTestData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -172,7 +172,7 @@ export function TestAnalytics({ testId }) {
       </div>
     );
   }
-
+//
   const COLORS = [
     "#4f46e5",
     "#06b6d4",

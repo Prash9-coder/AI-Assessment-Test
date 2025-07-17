@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-
+//
 // Test Assignment schema for managing which candidates can access which tests
 const testAssignmentSchema = new mongoose.Schema(
   {
@@ -33,9 +33,6 @@ const testAssignmentSchema = new mongoose.Schema(
     },
     accessToken: {
       type: String,
-=======
-      unique: true,
->>>>>>> upstream/main
       required: true
     },
     expiresAt: {
@@ -49,9 +46,6 @@ const testAssignmentSchema = new mongoose.Schema(
 // Index for efficient queries
 testAssignmentSchema.index({ testId: 1, candidateEmail: 1 }, { unique: true });
 testAssignmentSchema.index({ accessToken: 1 }, { unique: true });
-=======
-testAssignmentSchema.index({ accessToken: 1 });
->>>>>>> upstream/main
 testAssignmentSchema.index({ candidateId: 1 });
 
 module.exports = mongoose.model("TestAssignment", testAssignmentSchema);

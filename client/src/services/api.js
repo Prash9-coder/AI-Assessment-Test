@@ -8,7 +8,7 @@ const getAuthHeaders = () => {
     ...(token && { Authorization: `Bearer ${token}` }),
   };
 };
-
+//
 // Helper function to handle API responses
 const handleResponse = async (response) => {
   if (!response.ok) {

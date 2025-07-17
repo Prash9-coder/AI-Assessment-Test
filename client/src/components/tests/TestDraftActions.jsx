@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export function TestDraftActions({
-  testId,
   title,
   isDraft = true,
   onSaveAsDraft,
